@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Snake Game</title>
+	</head>
+	
+	<body>
+		<div style="text-align: center;">
+			<canvas id="snakeboard" width="450" height="450"></canvas>
+		</div>
+		<div style="text-align: center;">
+			<h1 id='score'>0</h1>
+		</div>
+		<div id="slidecontainer" class="slidecontainer" style="margin-left: 30%;">
+			<input type="range" min="5" max="20" value="15" class="slider" id="slider">
+			<span id="sliderOutput">15</span><br>
+			<button type="button" id="play" onclick="startGame();">Play</button>
+		</div>
+
+
+		<style>
+			#snakeboard {
+			  position: relative;
+			  margin: auto;
+			}
+		</style>
+	</body>
+
+	<script>
+		// Get the canvas element
+		const snakeboard = document.getElementById("snakeboard");
+		// Return a two dimensional drawing context
+		const snakeboard_ctx = snakeboard.getContext("2d");
+		//get score element
+		const scoreDisplay = document.getElementById("score");
+		//get slider
+		slider = document.getElementById("slider");
+		//get slider output display
+		sliderOutput = document.getElementById("sliderOutput");
+		//get play button
+		const playButton = document.getElementById("play");
+		
+		boardSize = 15;
+		fieldSize = snakeboard.width / boardSize;
+		foodRadius = fieldSize / 6;
+		snakeRadius = fieldSize / 3;
+
+		const board_border = 'black';
+		const board_background = "white";
+		
+		food = getRandomPos();
+
+		let snake = [
+		{x: 0, y: 0},
+		];
+
+		snakeStep = 1;
+		snakeSpeed = {x: snakeStep, y: 0};
+		var angleOfDirection = 0;
+
+		var lastKeyPressed = 0;
+		
+		brightestCoefficient = 0.5;
+
+		slider.oninput = function () {
+			boardSize = slider.value;
+			fieldSize = snakeboard.width / boardSize;
+			foodRadius = fieldSize / 6;
+			snakeRadius = fieldSize / 3;
+			food = getRandomPos();
+			drawGrid();
+			sliderOutput.textContent = boardSize;
+		}
+
+		drawGrid();
+
+		function drawGrid() {
+			//  Select the colour to fill the drawing
+			snakeboard_ctx.fillStyle = board_background;
+			// Draw a "filled" rectangle to cover the entire canvas
+			snakeboard_ctx.fillRect(0, 0, snakeboard.width, snakeboard.height);
+
+			snakeboard_ctx.beginPath();
+
+			for (var x = 0; x <= snakeboard.width; x += fieldSize) {
+				snakeboard_ctx.moveTo(x, 0);
+				snakeboard_ctx.lineTo(x, snakeboard.height);
+			}
+			// set the color of the line
+			snakeboard_ctx.strokeStyle = 'black';
+			snakeboard_ctx.lineWidth = 1;
+			// the stroke will actually paint the current path 
+			snakeboard_ctx.stroke(); 
+			// for the sake of the example 2nd path
+			snakeboard_ctx.beginPath(); 
+			for (var y = 0; y <= snakeboard.height; y += fieldSize) {
+				snakeboard_ctx.moveTo(0, y);
+				snakeboard_ctx.lineTo(snakeboard.width, y);
+			}
+			// set the color of the line
+			snakeboard_ctx.strokeStyle = 'black';
+			// just for fun
+			snakeboard_ctx.lineWidth = 1;
+			// for your original question - you need to stroke only once
+			snakeboard_ctx.stroke();
+		};
+
+		function startGame(){
+			document.getElementById("slidecontainer").style.display="none";
+			scoreDisplay.textContent = 0;
+			lastKeyPressed = 0;
+			main();
+		}
+
+		// main function called repeatedly to keep the game running
+		function main() {
+			if(hasGameEnded())
+			{
+				gameOver();
+				document.getElementById("slidecontainer").style.display = "block";
+				snake = [
+				{x: 0, y: 0},
+				];
+				return;
+			}
+
+			setTimeout(function onTick() {
+				changeDirection();
+				move_snake();
+				drawGrid();
+				drawSnake();
+				drawFood();
+				// Call main again
+				main();
+			}, 200)
+		}
+				
+		// Draw the snake on the canvas
+		function drawSnake() {
+			// Draw each part
+			for(i = 0; i < snake.length; i++)
+			{
+				drawSnakePart(snake[i], i)
+			}
+		}
+		
+		// Draw one snake part
+		function drawSnakePart(snakePart, i) {
+			snakeboard_ctx.beginPath();
+			if(i == 0)
+			{
+				snakeboard_ctx.arc(snakePart.x * fieldSize + fieldSize / 2, snakePart.y * fieldSize + fieldSize / 2, snakeRadius, angleOfDirection + Math.PI / 4, angleOfDirection + 7 * Math.PI / 4);
+				snakeboard_ctx.lineTo(snakePart.x * fieldSize + fieldSize / 2, snakePart.y * fieldSize + fieldSize / 2);
+				snakeboard_ctx.closePath();
+			}
+			else
+			{
+				snakeboard_ctx.ellipse(snakePart.x * fieldSize + fieldSize / 2, snakePart.y * fieldSize + fieldSize / 2, snakeRadius, snakeRadius, 0, 0, 2 * Math.PI);
+			}
+			snakeboard_ctx.fillStyle = `rgba(0, 0, 0, ${1 - (i/((snake.length > 1 ? snake.length - 1 : 1))) * brightestCoefficient})`;
+			snakeboard_ctx.fill();
+//			snakeboard_ctx.stroke();
+		}
+
+		function drawFood() {
+			snakeboard_ctx.beginPath();
+			snakeboard_ctx.ellipse(food.x * fieldSize + fieldSize / 2, food.y * fieldSize + fieldSize / 2, foodRadius, foodRadius, 0, 0, 2 * Math.PI);
+			snakeboard_ctx.fillStyle = 'red';
+			snakeboard_ctx.fill();
+			snakeboard_ctx.stroke();
+		}
+
+		function move_snake() {
+			// Create the new Snake's head
+			const head = {x: snake[0].x + snakeSpeed.x, y: snake[0].y + snakeSpeed.y};
+			// Add the new head to the beginning of snake body
+			snake.unshift(head);
+
+			if(isSnakeOnApple()) {
+				updateScore();
+				generateFood();
+			}
+			else{
+				snake.pop();
+			}
+		}
+
+		function updateScore() {
+			scoreDisplay.textContent = (snake.length - 1).toString();
+		}
+		
+		function isSnakeOnApple()
+		{
+			if(snake[0].x == food.x && snake[0].y == food.y)
+			{
+				return true;
+			}
+			return false;
+		}
+
+		function generateFood()
+		{
+			goodPos = false;
+			food = getRandomPos();
+			while(!goodPos)
+			{
+				for(i = 0; i < snake.length; i++)
+				{
+					if(food.x == snake[i].x && food.y == snake[i].y)
+					{
+						goodPos = false;
+						food = getRandomPos();
+						break;
+					}
+					goodPos = true;
+				}
+			}
+			drawFood();
+		}
+
+		function getRandomPos()
+		{
+			return {x: Math.floor(Math.random() * (boardSize)), y: Math.floor(Math.random() * (boardSize))}
+		}
+
+		function changeDirection() 
+		{  
+			const LEFT_KEY = 37;
+			const RIGHT_KEY = 39;
+			const UP_KEY = 38;
+			const DOWN_KEY = 40;
+			
+			const goingUp = snakeSpeed.y === -snakeStep;
+			const goingDown = snakeSpeed.y === snakeStep;
+			const goingRight = snakeSpeed.x === snakeStep;
+			const goingLeft = snakeSpeed.x === -snakeStep;
+		
+			if (lastKeyPressed === LEFT_KEY && !goingRight)
+			{
+				snakeSpeed = {x: -snakeStep, y: 0};
+				angleOfDirection = Math.PI;
+			}
+		
+			if (lastKeyPressed === UP_KEY && !goingDown)
+			{
+				snakeSpeed = {x: 0, y: -snakeStep};
+				angleOfDirection = 3 * Math.PI / 2;
+			}
+		
+			if (lastKeyPressed === RIGHT_KEY && !goingLeft)
+			{
+				snakeSpeed = {x: snakeStep, y: 0};
+				angleOfDirection = 0;
+			}
+
+			if (lastKeyPressed === DOWN_KEY && !goingUp)
+			{
+				snakeSpeed = {x: 0, y: snakeStep};
+				angleOfDirection = Math.PI / 2;
+			}
+			lastKeyPressed = 0;
+		}
+
+		function keyPress(event) {
+			lastKeyPressed = event.keyCode;
+		}
+
+		document.addEventListener("keydown", keyPress);
+
+		function gameOver(){
+			document.getElementById("slidecontainer").style.display = "block";
+			snake = [{x: 0, y: 0}];
+			snakeSpeed = {x: snakeStep, y: 0};
+			angleOfDirection = 0;
+		}
+
+		function hasGameEnded()
+		{  
+			for (let i = 3; i < snake.length; i++)
+			{    
+				const has_collided = snake[i].x === snake[0].x && snake[i].y === snake[0].y;
+				if (has_collided)
+				{
+					return true;
+				}
+			}
+
+			const hitLeftWall = snake[0].x < 0;  
+			const hitRightWall = snake[0].x > boardSize - 1;
+			const hitToptWall = snake[0].y < 0;
+			const hitBottomWall = snake[0].y > boardSize - 1;
+			
+			return hitLeftWall ||  hitRightWall || hitToptWall || hitBottomWall;
+		}
+
+	</script>
+</html>
